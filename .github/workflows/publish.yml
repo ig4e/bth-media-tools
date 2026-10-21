@@ -1,0 +1,40 @@
+name: Publish pinned FFmpeg tools
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: pinned-ffmpeg-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify unchanged upstream archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-21-13-06'
+          for asset in ffmpeg-n9.0.2-31-gc89d6ee1ca-linux64-gpl-9.0.tar.xz ffmpeg-n9.0.2-31-gc89d6ee1ca-linuxarm64-gpl-9.0.tar.xz ffmpeg-n9.0.2-31-gc89d6ee1ca-winarm64-gpl-9.0.zip; do
+            curl --fail --location --retry 4 --output "$asset" "$base/$asset"
+          done
+          cat > SHA256SUMS <<'CHECKSUMS'
+          2212009529e7a18809c0a23700e8045364c17853c4390cf8c051e6b65dd97bde  ffmpeg-n9.0.2-31-gc89d6ee1ca-linux64-gpl-9.0.tar.xz
+          296fc0af7e9a426119cefcf0b9e9365d953ee08a56434115c0c3b1e1a0aaf38a  ffmpeg-n9.0.2-31-gc89d6ee1ca-linuxarm64-gpl-9.0.tar.xz
+          854db901ff7e5fbf9ff5baf4fb20846011aaff9c1d2d1669a45a58e0dbf86edf  ffmpeg-n9.0.2-31-gc89d6ee1ca-winarm64-gpl-9.0.zip
+          CHECKSUMS
+          sha256sum --check SHA256SUMS
+      - name: Publish the immutable tool archives
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create tools-ffmpeg-9.0.2-20261021 \
+            ffmpeg-n9.0.2-31-gc89d6ee1ca-linux64-gpl-9.0.tar.xz \
+            ffmpeg-n9.0.2-31-gc89d6ee1ca-linuxarm64-gpl-9.0.tar.xz \
+            ffmpeg-n9.0.2-31-gc89d6ee1ca-winarm64-gpl-9.0.zip \
+            SHA256SUMS --target "$GITHUB_SHA" --latest=false \
+            --title 'FFmpeg 9.0.2 pinned native tools' --notes-file README.md
